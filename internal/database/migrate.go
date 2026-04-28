@@ -20,7 +20,7 @@ func RunMigrations(db *sql.DB, migrationsPath string) error {
 	// Examples for migrationsPath: "file://database/migrations"
 	m, err := migrate.NewWithDatabaseInstance(
 		migrationsPath,
-		"sqlite3", 
+		"sqlite3",
 		driver,
 	)
 	if err != nil {
