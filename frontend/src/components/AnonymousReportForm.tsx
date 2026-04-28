@@ -9,16 +9,37 @@ interface AnonymousReportFormProps {
 
 export default function AnonymousReportForm({ buildings, onSubmit }: AnonymousReportFormProps) {
   const [buildingId, setBuildingId] = useState(buildings[0]?.id || "");
+  const [category, setCategory] = useState("lighting"); // TASK 10: Category state
   const [message, setMessage] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim()) return;
-    onSubmit(buildingId, message.trim());
-    setMessage("");
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 3000);
+
+    // TASK 11: POST to /api/reports
+    try {
+      await fetch("http://localhost:8080/api/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          building_id: buildingId,
+          category: category,
+          message: message.trim(),
+        }),
+      });
+
+      // Keep the parent hook in sync
+      onSubmit(buildingId, message.trim()); 
+      
+      // Reset form
+      setMessage("");
+      setCategory("lighting");
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 3000);
+    } catch (error) {
+      console.error("Failed to submit report:", error);
+    }
   };
 
   return (
@@ -31,17 +52,31 @@ export default function AnonymousReportForm({ buildings, onSubmit }: AnonymousRe
         Report observed issues anonymously. No personal data is collected or stored.
       </p>
       <form onSubmit={handleSubmit} className="space-y-3">
-        <select
-          value={buildingId}
-          onChange={(e) => setBuildingId(e.target.value)}
-          className="w-full bg-muted border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-        >
-          {buildings.map((b) => (
-            <option key={b.id} value={b.id}>
-              {b.name}
-            </option>
-          ))}
-        </select>
+        <div className="flex gap-2">
+          <select
+            value={buildingId}
+            onChange={(e) => setBuildingId(e.target.value)}
+            className="w-1/2 bg-muted border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          >
+            {buildings.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+          
+          {/* TASK 10: Category Dropdown */}
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-1/2 bg-muted border border-border rounded-md px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          >
+            <option value="lighting">Lighting</option>
+            <option value="hvac">HVAC</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}

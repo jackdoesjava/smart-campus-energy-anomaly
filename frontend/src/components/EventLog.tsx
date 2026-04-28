@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertTriangle, Check, Tag, Filter, Download, Search } from "lucide-react";
 import type { AnomalyEvent } from "@/hooks/useEnergyData";
 
@@ -25,11 +25,59 @@ const severityDot: Record<string, string> = {
 
 export default function EventLog({ events, onTag, onAcknowledge, selectedBuilding }: EventLogProps) {
   const [filter, setFilter] = useState<"all" | "building">("building");
+  const [severityFilter, setSeverityFilter] = useState<"all" | "low" | "medium" | "high">("all"); // TASK 7: Severity state
   const [searchQuery, setSearchQuery] = useState("");
   const [tagDropdown, setTagDropdown] = useState<string | null>(null);
+  
+  // Local state to merge prop events with live WebSocket events
+  const [liveEvents, setLiveEvents] = useState<AnomalyEvent[]>(events);
 
-  const filteredEvents = events
+  // Sync with parent state if it changes massively
+  useEffect(() => {
+    setLiveEvents(events);
+  }, [events]);
+
+  // TASK 9: WebSocket Connection
+  useEffect(() => {
+    const ws = new WebSocket("ws://localhost:8080/ws");
+    
+    ws.onmessage = (event) => {
+      try {
+        const newAnomaly = JSON.parse(event.data);
+        // Format timestamp since it comes as a string from JSON
+        newAnomaly.timestamp = new Date(newAnomaly.timestamp);
+        
+        // Add new anomaly to the top of the list
+        setLiveEvents((prev) => [newAnomaly, ...prev]);
+      } catch (err) {
+        console.error("Failed to parse WebSocket message", err);
+      }
+    };
+
+    return () => ws.close(); // Cleanup on unmount
+  }, []);
+
+  // TASK 8: PATCH Tag Edit
+  const handleTagSelect = async (eventId: string, tag: string) => {
+    try {
+      await fetch(`http://localhost:8080/api/anomalies/${eventId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tag }),
+      });
+      onTag(eventId, tag); // Update parent hook
+      
+      // Update local live state optimistically
+      setLiveEvents(prev => prev.map(e => e.id === eventId ? { ...e, tag } : e));
+      setTagDropdown(null);
+    } catch (err) {
+      console.error("Failed to update tag:", err);
+    }
+  };
+
+  const filteredEvents = liveEvents
     .filter((e) => (filter === "building" ? e.buildingId === selectedBuilding : true))
+    .filter((e) => severityFilter === "all" || e.severity === severityFilter) // TASK 7: Apply filter
     .filter((e) => searchQuery === "" || e.message.toLowerCase().includes(searchQuery.toLowerCase()) || (e.tag && e.tag.toLowerCase().includes(searchQuery.toLowerCase())));
 
   const exportCSV = () => {
@@ -57,6 +105,18 @@ export default function EventLog({ events, onTag, onAcknowledge, selectedBuildin
           </span>
         </div>
         <div className="flex items-center gap-1.5">
+          {/* TASK 7: Severity Dropdown UI */}
+          <select
+            value={severityFilter}
+            onChange={(e) => setSeverityFilter(e.target.value as any)}
+            className="text-xs px-2 py-1.5 rounded-md bg-secondary text-secondary-foreground border-none focus:ring-1 focus:ring-primary/50 cursor-pointer"
+          >
+            <option value="all">All Severities</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+          </select>
+          
           <button
             onClick={() => setFilter(filter === "all" ? "building" : "all")}
             className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors active:scale-[0.97]"
@@ -140,10 +200,7 @@ export default function EventLog({ events, onTag, onAcknowledge, selectedBuildin
                           {TAGS.map((tag) => (
                             <button
                               key={tag}
-                              onClick={() => {
-                                onTag(event.id, tag);
-                                setTagDropdown(null);
-                              }}
+                              onClick={() => handleTagSelect(event.id, tag)} // Replaced with fetch call
                               className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors text-foreground"
                             >
                               {tag}

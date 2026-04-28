@@ -19,11 +19,11 @@
 - [x] 6. Confirm all three routes render: `/` (Dashboard), `/log` (Event Log), `/report` (Report)
 
 ### Phase 2 — Close remaining frontend gaps
-- [ ] 7. Event Log: severity filter (low / medium / high)
-- [ ] 8. Event Log: inline tag editing → `PATCH /api/anomalies/:id`
-- [ ] 9. Event Log: new anomalies appear live via WebSocket (no refresh)
-- [ ] 10. Report form: category dropdown (lighting, HVAC, other)
-- [ ] 11. Report form: submit button posts to `POST /api/reports`
+- [x] 7. Event Log: severity filter (low / medium / high)
+- [x] 8. Event Log: inline tag editing → `PATCH /api/anomalies/:id`
+- [x] 9. Event Log: new anomalies appear live via WebSocket (no refresh)
+- [x] 10. Report form: category dropdown (lighting, HVAC, other)
+- [x] 11. Report form: submit button posts to `POST /api/reports`
 
 ### Phase 3 — Backend tests
 - [ ] 12. Unit tests: z-score, rolling average, threshold logic (incl. out-of-hours + holiday), linear regression
