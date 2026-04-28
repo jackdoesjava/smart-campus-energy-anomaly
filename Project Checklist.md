@@ -1,5 +1,61 @@
 # Smart Campus Anomaly Dashboard — Project Checklist
 
+## Remaining Work — In Order
+
+### Phase 1 — Wire frontend to real backend (biggest unlock)
+- [x] 1. Build `frontend/src/hooks/useWebSocket.js` — connect, exponential-backoff reconnect, JSON parse, unmount cleanup
+- [x] 2. Replace mock simulation in `frontend/src/hooks/useEnergyData.ts` with real `GET /api/readings` fetch
+- [x] 3. Wire one live sparkline per building to WebSocket-driven state (kWh, last hour)
+- [x] 4. Add anomaly toast/banner that fires on WebSocket payload arrival
+- [x] 5. Wire `components/ForecastChart.jsx` to `GET /api/forecast`
+- [x] 6. Confirm all three routes render: `/` (Dashboard), `/log` (Event Log), `/report` (Report)
+
+### Phase 2 — Close remaining frontend gaps
+- [ ] 7. Event Log: severity filter (low / medium / high)
+- [ ] 8. Event Log: inline tag editing → `PATCH /api/anomalies/:id`
+- [ ] 9. Event Log: new anomalies appear live via WebSocket (no refresh)
+- [ ] 10. Report form: category dropdown (lighting, HVAC, other)
+- [ ] 11. Report form: submit button posts to `POST /api/reports`
+
+### Phase 3 — Backend tests
+- [ ] 12. Unit tests: z-score, rolling average, threshold logic (incl. out-of-hours + holiday), linear regression
+- [ ] 13. `go vet` + `gofmt` clean across the repo
+- [ ] 14. End-to-end test: ingestor run → anomaly detected → DB record present
+- [ ] 15. API response tests for every REST endpoint
+- [ ] 16. Verify zero PII stored after a report submission
+
+### Phase 4 — Critical performance gate (success criterion)
+- [ ] 17. Write WebSocket latency load test (spike injection → client receipt)
+- [ ] 18. Confirm sub-2-second alert delivery under load — **must pass before Final Audit**
+
+### Phase 5 — Dockerise
+- [ ] 19. `backend/Dockerfile` — multi-stage Go builder → Alpine runtime
+- [ ] 20. `frontend/Dockerfile` — Vite build served via Nginx
+- [ ] 21. `docker-compose.yml` — backend + frontend wired, SQLite volume mounted
+- [ ] 22. `docker compose up` brings up the full stack with no extra steps
+
+### Phase 6 — Railway deploy
+- [ ] 23. Connect backend service to GitHub repo on Railway
+- [ ] 24. Connect frontend service to GitHub repo on Railway
+- [ ] 25. Configure persistent SQLite volume on Railway
+- [ ] 26. Pipeline green end-to-end (note: original Week 7 target has slipped)
+- [ ] 27. Local Docker fallback tested as Final Audit backup
+
+### Phase 7 — Repo hygiene
+- [ ] 28. Branch protection enabled on `main`
+- [ ] 29. PR-only workflow with at least one peer review required
+- [ ] 30. No committed secrets — confirm all API keys via env vars
+- [ ] 31. All commits reference a task ID from the project schedule
+
+### Phase 8 — Final QA sign-off
+- [ ] 32. UX review by QA Lead (Mubeen)
+- [ ] 33. Marking rubric criteria verified end-to-end
+- [ ] 34. Virtual sensor stream validated end-to-end
+- [ ] 35. External API integrations (weather + holidays) verified live
+- [ ] 36. Scope confirmed — no out-of-scope features included
+
+---
+
 ## Backend (Go)
 
 ### Database
@@ -66,22 +122,22 @@
 - [x] Vite + React project scaffolded
 - [x] `react-router-dom` installed and routing configured
 - [x] `recharts` installed for charts
-- [ ] Three routes: `/` (Dashboard), `/log` (Event Log), `/report` (Report)
+- [x] Three routes: `/` (Dashboard), `/log` (Event Log), `/report` (Report)
 
 ### WebSocket Hook (`hooks/useWebSocket.js`)
-- [ ] Connects to backend WebSocket on component mount
-- [ ] Reconnects automatically with exponential back-off on disconnect
-- [ ] Parses incoming JSON and dispatches to state/context
-- [ ] Cleans up connection on unmount
+- [x] Connects to backend WebSocket on component mount
+- [x] Reconnects automatically with exponential back-off on disconnect
+- [x] Parses incoming JSON and dispatches to state/context
+- [x] Cleans up connection on unmount
 
 ### Dashboard Page (`pages/Dashboard.jsx`)
 - [x] KPI card: total kWh today
 - [x] KPI card: average CO2 across buildings
 - [x] KPI card: out-of-hours usage share (%)
 - [x] KPI card: energy use intensity (kWh/m²)
-- [ ] One live sparkline chart per building (kWh over last hour)
-- [ ] Sparklines update in real time via WebSocket
-- [ ] Anomaly toast/banner appears within 2 seconds of a WebSocket alert arriving
+- [x] One live sparkline chart per building (kWh over last hour)
+- [x] Sparklines update in real time via WebSocket
+- [x] Anomaly toast/banner appears within 2 seconds of a WebSocket alert arriving
 
 ### Event Log Page (`pages/EventLog.jsx`)
 - [x] Table showing all anomalies: timestamp, building, severity, tag
@@ -99,7 +155,7 @@
 - [x] Success/error feedback shown after submission
 
 ### Forecast Chart (`components/ForecastChart.jsx`)
-- [ ] Fetches data from `GET /api/forecast`
+- [x] Fetches data from `GET /api/forecast`
 - [x] Renders historical kWh alongside predicted values on one chart
 - [x] Visually distinguishes historical vs. forecast data (e.g. dashed line)
 

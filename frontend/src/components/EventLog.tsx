@@ -12,15 +12,13 @@ interface EventLogProps {
 const TAGS = ["HVAC Fault", "Lighting Left On", "Equipment Malfunction", "Weather-Related", "Holiday Spike", "False Positive"];
 
 const severityStyles: Record<string, string> = {
-  critical: "bg-destructive/15 text-destructive border-destructive/30",
-  high: "bg-destructive/10 text-destructive/80 border-destructive/20",
+  high: "bg-destructive/15 text-destructive border-destructive/30",
   medium: "bg-warning/10 text-warning border-warning/20",
   low: "bg-primary/10 text-primary border-primary/20",
 };
 
 const severityDot: Record<string, string> = {
-  critical: "bg-destructive animate-pulse-dot",
-  high: "bg-destructive/70",
+  high: "bg-destructive animate-pulse-dot",
   medium: "bg-warning",
   low: "bg-primary",
 };
