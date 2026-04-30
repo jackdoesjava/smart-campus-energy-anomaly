@@ -22,7 +22,9 @@ Icon?
 # Go — compiled binaries
 bin/
 obj/
-server
+# Anchored to repo root so it only matches the compiled ./server binary,
+# not the cmd/server/ source package.
+/server
 *.exe
 *.exe~
 *.dll
