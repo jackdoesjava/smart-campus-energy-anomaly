@@ -1,4 +1,4 @@
-# Standard .gitignore for Go, React, and macOS
+# Standard .gitignore for Go, React, Python and macOS
 
 # macOS
 .DS_Store
@@ -60,3 +60,11 @@ data/
 # Temp
 tmp/
 .temp/
+
+# =========================
+# Python (ML Microservice)
+# =========================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class

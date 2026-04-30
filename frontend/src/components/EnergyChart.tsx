@@ -4,9 +4,14 @@ import type { SensorReading } from "@/hooks/useEnergyData";
 
 interface EnergyChartProps {
   readings: SensorReading[];
-  forecast: { timestamp: Date; predicted: number }[];
+  forecast: {
+    kwh: { timestamp: Date; predicted: number }[];
+    temp: { timestamp: Date; predicted: number }[];
+    co2: { timestamp: Date; predicted: number }[];
+  };
   selectedBuilding: string;
   metric: "kWh" | "temperature" | "co2";
+  timeFrame: "hour" | "day" | "week";
 }
 
 const metricConfig = {
@@ -15,7 +20,7 @@ const metricConfig = {
   co2: { label: "CO₂ (ppm)", color: "hsl(280, 60%, 60%)", gradient: "chartCO2" },
 };
 
-export default function EnergyChart({ readings, forecast, selectedBuilding, metric }: EnergyChartProps) {
+export default function EnergyChart({ readings, forecast, selectedBuilding, metric, timeFrame }: EnergyChartProps) {
   const config = metricConfig[metric];
   
   if (!readings || readings.length === 0) {
@@ -28,22 +33,31 @@ export default function EnergyChart({ readings, forecast, selectedBuilding, metr
 
   const data = useMemo(() => {
     const buildingReadings = readings.filter((r) => r.buildingId === selectedBuilding);
-    const historical = buildingReadings.slice(-30).map((r) => ({
+    
+    // Map historical data based on active metric
+    const historical = buildingReadings.map((r) => ({
       time: r.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       value: Math.round((metric === "kWh" ? r.kWh : metric === "temperature" ? r.temperature : r.co2) * 10) / 10,
       forecast: undefined as number | undefined,
     }));
 
-    if (metric === "kWh") {
-      const forecastData = forecast.map((f) => ({
-        time: f.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        value: undefined as number | undefined,
-        forecast: Math.round(f.predicted * 10) / 10,
-      }));
-      return [...historical, ...forecastData];
+    // Select correct forecast array
+    const activeForecastArray = metric === "kWh" ? forecast.kwh : 
+                                metric === "temperature" ? forecast.temp : 
+                                forecast.co2;
+
+    const forecastData = (activeForecastArray || []).map((f) => ({
+      time: f.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      value: undefined as number | undefined,
+      forecast: Math.round(f.predicted * 10) / 10,
+    }));
+
+    // Stitch the gap: Connect solid line to dashed line
+    if (historical.length > 0 && forecastData.length > 0) {
+      historical[historical.length - 1].forecast = historical[historical.length - 1].value;
     }
 
-    return historical;
+    return [...historical, ...forecastData];
   }, [readings, forecast, selectedBuilding, metric]);
 
   const avg = useMemo(() => {
@@ -54,7 +68,7 @@ export default function EnergyChart({ readings, forecast, selectedBuilding, metr
   return (
     <div className="bg-card border border-border rounded-lg p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold">{config.label}</h3>
+        <h3 className="text-sm font-semibold">{config.label} ({timeFrame})</h3>
         <span className="font-mono-data text-xs text-muted-foreground">avg: {avg}</span>
       </div>
       <div className="h-[200px]">
@@ -88,28 +102,24 @@ export default function EnergyChart({ readings, forecast, selectedBuilding, metr
               dot={false}
               isAnimationActive={false}
             />
-            {metric === "kWh" && (
-              <Area
-                type="monotone"
-                dataKey="forecast"
-                stroke={config.color}
-                strokeWidth={2}
-                strokeDasharray="6 3"
-                fill="none"
-                dot={false}
-                isAnimationActive={false}
-                connectNulls={false}
-              />
-            )}
+            <Area
+              type="monotone"
+              dataKey="forecast"
+              stroke={config.color}
+              strokeWidth={2}
+              strokeDasharray="6 3"
+              fill="none"
+              dot={false}
+              isAnimationActive={false}
+              connectNulls={false}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>
-      {metric === "kWh" && (
-        <p className="text-[10px] text-muted-foreground mt-2">
-          <span className="inline-block w-4 border-t-2 border-dashed mr-1 align-middle" style={{ borderColor: config.color }} />
-          ML Forecast (time-series regression)
-        </p>
-      )}
+      <p className="text-[10px] text-muted-foreground mt-2">
+        <span className="inline-block w-4 border-t-2 border-dashed mr-1 align-middle" style={{ borderColor: config.color }} />
+        Deep Learning Forecast (PyTorch LSTM)
+      </p>
     </div>
   );
 }

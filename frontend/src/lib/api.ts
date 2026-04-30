@@ -100,9 +100,21 @@ export async function getAnomalies(buildings: Building[], buildingId?: string, s
   return raw.map((a) => mapAnomaly(a, buildings));
 }
 
-export async function getForecast(buildingId: string): Promise<{ timestamp: Date; predicted: number }[]> {
-  const raw = await fetchJSON<RawForecastPoint[]>(`/api/forecast?building=${encodeURIComponent(buildingId)}`);
-  return raw.map(mapForecast);
+// src/lib/api.ts update
+export async function getForecast(buildingId: string, steps: number = 12): Promise<{ 
+  kwh: { timestamp: Date; predicted: number }[], 
+  temp: { timestamp: Date; predicted: number }[], 
+  co2: { timestamp: Date; predicted: number }[] 
+}> {
+  // Add the steps parameter to the Go API request
+  const raw = await fetchJSON<any>(`/api/forecast?building=${encodeURIComponent(buildingId)}&steps=${steps}`);
+  
+  // Map all three metric timelines
+  return {
+    kwh: (raw.kwh || []).map(mapForecast),
+    temp: (raw.temp || []).map(mapForecast),
+    co2: (raw.co2 || []).map(mapForecast),
+  };
 }
 
 export async function postReport(buildingId: string, category: string, description: string): Promise<{ id: number; status: string }> {

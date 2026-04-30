@@ -3,8 +3,8 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
-	"math"
 	"net/http"
+	"smart-campus-dashboard/internal/integrations"
 	"smart-campus-dashboard/internal/models"
 	"strconv"
 	"strings"
@@ -12,11 +12,12 @@ import (
 )
 
 type Handlers struct {
-	db *sql.DB
+	db       *sql.DB
+	mlClient *integrations.MLClient
 }
 
-func NewHandlers(db *sql.DB) *Handlers {
-	return &Handlers{db: db}
+func NewHandlers(db *sql.DB, mlClient *integrations.MLClient) *Handlers {
+	return &Handlers{db: db, mlClient: mlClient}
 }
 
 func jsonResponse(w http.ResponseWriter, status int, v interface{}) {
@@ -44,7 +45,7 @@ func (h *Handlers) GetReadings(w http.ResponseWriter, r *http.Request) {
 	building := r.URL.Query().Get("building")
 	limit := 60
 	if l := r.URL.Query().Get("limit"); l != "" {
-		if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 1000 {
+		if n, err := strconv.Atoi(l); err == nil && n > 0 && n <= 3000 {
 			limit = n
 		}
 	}
@@ -101,8 +102,8 @@ func (h *Handlers) listAnomalies(w http.ResponseWriter, r *http.Request) {
 	severity := r.URL.Query().Get("severity")
 
 	query := `SELECT a.id, a.reading_id, a.detected_at, a.severity, COALESCE(a.tag,''),
-		r.building_id, r.kwh, r.temperature, r.co2_ppm
-		FROM anomalies a JOIN readings r ON a.reading_id = r.id`
+        r.building_id, r.kwh, r.temperature, r.co2_ppm
+        FROM anomalies a JOIN readings r ON a.reading_id = r.id`
 
 	var conds []string
 	var args []interface{}
@@ -198,20 +199,28 @@ func (h *Handlers) CreateReport(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, http.StatusCreated, map[string]interface{}{"id": id, "status": "created"})
 }
 
-// GET /api/forecast?building=X  — linear regression over last 24 h of readings
+// GET /api/forecast?building=X&steps=Y
 func (h *Handlers) GetForecast(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	building := r.URL.Query().Get("building")
 	if building == "" {
 		building = "library"
 	}
 
+	// --- THE FIX: Dynamically read 'steps' from the React frontend ---
+	steps := 12 // Default to 1 hour
+	if s := r.URL.Query().Get("steps"); s != "" {
+		if n, err := strconv.Atoi(s); err == nil && n > 0 {
+			steps = n
+		}
+	}
+	// -----------------------------------------------------------------
+
+	// 1. Pull all metrics: kWh, Temperature, and CO2
 	rows, err := h.db.Query(
-		`SELECT CAST(strftime('%s', timestamp) AS INTEGER), kwh FROM readings WHERE building_id = ? ORDER BY timestamp DESC LIMIT 144`,
+		`SELECT kwh, temperature, co2_ppm, timestamp 
+         FROM readings 
+         WHERE building_id = ? 
+         ORDER BY timestamp DESC LIMIT 144`,
 		building,
 	)
 	if err != nil {
@@ -220,56 +229,74 @@ func (h *Handlers) GetForecast(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	type pt struct{ x, y float64 }
-	var pts []pt
+	var historyKWh []float64
+	var historyTemp []float64
+	var historyCO2 []float64
+	var oldestTs string
+	var latestTs string
+
 	for rows.Next() {
-		var p pt
-		if err := rows.Scan(&p.x, &p.y); err != nil {
-			continue
+		var kwh, temp, co2 float64
+		var ts string
+		if err := rows.Scan(&kwh, &temp, &co2, &ts); err == nil {
+			historyKWh = append(historyKWh, kwh)
+			historyTemp = append(historyTemp, temp)
+			historyCO2 = append(historyCO2, co2)
+			if latestTs == "" {
+				latestTs = ts
+			}
+			oldestTs = ts
 		}
-		pts = append(pts, p)
 	}
 
-	if len(pts) < 2 {
-		jsonResponse(w, http.StatusOK, []interface{}{})
+	if len(historyKWh) < 24 {
+		// Return empty if we don't have enough data for a PhD-tier LSTM window
+		jsonResponse(w, http.StatusOK, map[string]interface{}{})
 		return
 	}
 
-	n := float64(len(pts))
-	var sumX, sumY, sumXY, sumX2 float64
-	for _, p := range pts {
-		sumX += p.x
-		sumY += p.y
-		sumXY += p.x * p.y
-		sumX2 += p.x * p.x
+	// 2. Reverse all slices (chronological order for Python)
+	reverse := func(s []float64) {
+		for i, j := 0, len(s)-1; i < j; i, j = i+1, j-1 {
+			s[i], s[j] = s[j], s[i]
+		}
 	}
+	reverse(historyKWh)
+	reverse(historyTemp)
+	reverse(historyCO2)
 
-	denom := n*sumX2 - sumX*sumX
-	if denom == 0 {
-		jsonResponse(w, http.StatusOK, []interface{}{})
+	// 3. Call ML Service with the multivariate data and the DYNAMIC steps
+	startTime := parseTimestamp(oldestTs).Format(time.RFC3339)
+	forecasts, err := h.mlClient.GetForecast(historyKWh, historyTemp, historyCO2, steps, startTime)
+	if err != nil {
+		jsonResponse(w, http.StatusOK, map[string]interface{}{})
 		return
 	}
-	slope := (n*sumXY - sumX*sumY) / denom
-	intercept := (sumY - slope*sumX) / n
 
-	type prediction struct {
+	// 4. Format the response for React
+	type predPoint struct {
 		Timestamp string  `json:"timestamp"`
 		Predicted float64 `json:"predicted"`
 	}
 
-	now := time.Now().Unix()
-	preds := make([]prediction, 0, 12)
-	for step := 1; step <= 12; step++ {
-		futureX := float64(now + int64(step)*300)
-		val := slope*futureX + intercept
-		if val < 0 {
-			val = 0
+	lastTime := parseTimestamp(latestTs)
+	response := make(map[string][]predPoint)
+
+	// Helper to map the raw float slices from Python to timestamped points for Recharts
+	mapToTimeline := func(key string, vals []float64) {
+		var points []predPoint
+		for i, val := range vals {
+			points = append(points, predPoint{
+				Timestamp: lastTime.Add(time.Duration(i+1) * 5 * time.Minute).Format(time.RFC3339),
+				Predicted: val,
+			})
 		}
-		preds = append(preds, prediction{
-			Timestamp: time.Unix(int64(futureX), 0).UTC().Format(time.RFC3339),
-			Predicted: math.Round(val*100) / 100,
-		})
+		response[key] = points
 	}
 
-	jsonResponse(w, http.StatusOK, preds)
+	mapToTimeline("kwh", forecasts["kwh"])
+	mapToTimeline("temp", forecasts["temp"])
+	mapToTimeline("co2", forecasts["co2"])
+
+	jsonResponse(w, http.StatusOK, response)
 }

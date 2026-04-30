@@ -68,7 +68,7 @@ export const BUILDINGS: Building[] = [
 ];
 
 const POLL_INTERVAL_MS = 30000;
-const MAX_READINGS = 500;
+const MAX_READINGS = 2500;
 const MAX_EVENTS = 200;
 
 function dedupeReadings(arr: SensorReading[]): SensorReading[] {
@@ -85,26 +85,38 @@ function dedupeReadings(arr: SensorReading[]): SensorReading[] {
 
 export function useEnergyData() {
   const [selectedBuilding, setSelectedBuilding] = useState<string>(BUILDINGS[0].id);
+  const [timeFrame, setTimeFrame] = useState<"hour" | "day" | "week">("hour"); // New state
   const [readings, setReadings] = useState<SensorReading[]>([]);
   const [events, setEvents] = useState<AnomalyEvent[]>([]);
   const [reports, setReports] = useState<AnonymousReport[]>([]);
   const [isLive, setIsLive] = useState(true);
-  const [forecast, setForecast] = useState<{ timestamp: Date; predicted: number }[]>([]);
+  
+  // Updated forecast state to handle the multivariate object
+  const [forecast, setForecast] = useState<{
+    kwh: { timestamp: Date; predicted: number }[];
+    temp: { timestamp: Date; predicted: number }[];
+    co2: { timestamp: Date; predicted: number }[];
+  }>({ kwh: [], temp: [], co2: [] });
 
   const readingsRef = useRef<SensorReading[]>([]);
   readingsRef.current = readings;
 
   const refreshReadings = useCallback(async () => {
+    // Map timeFrame to the number of 5-minute intervals required
+    const limits = { hour: 12, day: 288, week: 2016 };
+    const limit = limits[timeFrame];
+
     try {
       const batches = await Promise.all(
-        BUILDINGS.map((b) => getReadings(b.id, READINGS_PER_HOUR))
+        BUILDINGS.map((b) => getReadings(b.id, limit))
       );
+      // Ensure we don't truncate the data we just fetched
       const flat = dedupeReadings(batches.flat()).slice(-MAX_READINGS);
       setReadings(flat);
     } catch (err) {
       console.warn("[useEnergyData] failed to refresh readings", err);
     }
-  }, []);
+  }, [timeFrame]); // Add timeFrame to dependencies
 
   const refreshAnomalies = useCallback(async () => {
     try {
@@ -115,29 +127,48 @@ export function useEnergyData() {
     }
   }, []);
 
+  // Track the most recent reading for the SELECTED building only
+  const buildingReadings = readings.filter(r => r.buildingId === selectedBuilding);
+  const latestReadingTime = buildingReadings.length > 0 
+    ? buildingReadings[buildingReadings.length - 1].timestamp.getTime() 
+    : 0;
+
   // Initial load
   useEffect(() => {
     refreshReadings();
     refreshAnomalies();
   }, [refreshReadings, refreshAnomalies]);
 
-  // Forecast — refetch when selectedBuilding changes
+  // Forecast — refetch when selectedBuilding, timeFrame, OR data changes
   useEffect(() => {
     let cancelled = false;
-    getForecast(selectedBuilding)
-      .then((fc) => {
-        if (!cancelled) setForecast(fc);
+
+    // 1. Map the current timeFrame to the correct number of prediction steps
+    const stepsMap = { hour: 12, day: 288, week: 2016 };
+    const steps = stepsMap[timeFrame];
+
+    // 2. Pass the steps into your getForecast API call
+    getForecast(selectedBuilding, steps)
+      .then((fc: any) => {
+        if (!cancelled) {
+          // Store the full multivariate object { kwh, temp, co2 }
+          setForecast({
+            kwh: fc.kwh || [],
+            temp: fc.temp || [],
+            co2: fc.co2 || [],
+          });
+        }
       })
       .catch((err) => {
         if (!cancelled) {
           console.warn("[useEnergyData] failed to load forecast", err);
-          setForecast([]);
+          setForecast({ kwh: [], temp: [], co2: [] });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [selectedBuilding]);
+  }, [selectedBuilding, timeFrame, latestReadingTime]); // 3. Added timeFrame to dependencies!
 
   // Poll readings while live
   useEffect(() => {
@@ -223,6 +254,8 @@ export function useEnergyData() {
     buildings: BUILDINGS,
     selectedBuilding,
     setSelectedBuilding,
+    timeFrame,
+    setTimeFrame,   
     readings,
     events,
     reports,

@@ -14,6 +14,8 @@ export default function Dashboard() {
     buildings,
     selectedBuilding,
     setSelectedBuilding,
+    timeFrame,      
+    setTimeFrame,   
     readings,
     events,
     isLive,
@@ -29,6 +31,7 @@ export default function Dashboard() {
   const kpis = getKPIs();
   const building = buildings.find((b) => b.id === selectedBuilding)!;
 
+  // Actual liveControls JSX
   const liveControls = (
     <>
       <div className="flex items-center gap-1.5">
@@ -48,6 +51,23 @@ export default function Dashboard() {
   return (
     <Layout headerControls={liveControls}>
       <BuildingSelector buildings={buildings} selected={selectedBuilding} onSelect={setSelectedBuilding} />
+      
+      {/* Time Frame Toggles */}
+      <div className="flex items-center gap-2 mb-4 bg-card border border-border p-1 rounded-lg w-fit">
+        {(["hour", "day", "week"] as const).map((tf) => (
+          <button
+            key={tf}
+            onClick={() => setTimeFrame(tf)}
+            className={`text-[10px] uppercase px-3 py-1 rounded-md transition-all ${
+              timeFrame === tf 
+                ? "bg-primary/15 text-primary font-bold" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {tf}
+          </button>
+        ))}
+      </div>
 
       <BuildingSparklinesGrid
         buildings={buildings}
@@ -76,13 +96,24 @@ export default function Dashboard() {
             ))}
           </div>
 
-          <EnergyChart readings={readings} forecast={forecast} selectedBuilding={selectedBuilding} metric={chartMetric} />
+          <EnergyChart 
+            readings={readings} 
+            forecast={forecast} 
+            selectedBuilding={selectedBuilding} 
+            metric={chartMetric} 
+            timeFrame={timeFrame}
+          />
 
           <AnonymousReportForm buildings={buildings} onSubmit={submitReport} />
         </div>
 
         <div className="xl:col-span-1 min-h-[500px]">
-          <EventLog events={events} onTag={tagEvent} onAcknowledge={acknowledgeEvent} selectedBuilding={selectedBuilding} />
+          <EventLog 
+            events={events} 
+            onTag={tagEvent} 
+            onAcknowledge={acknowledgeEvent} 
+            selectedBuilding={selectedBuilding} 
+          />
         </div>
       </div>
     </Layout>

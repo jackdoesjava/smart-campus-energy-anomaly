@@ -35,6 +35,7 @@ func main() {
 	weather := integrations.NewWeatherClient()
 	holidays := integrations.NewHolidayClient()
 	ingestor := workers.NewIngestor(db, hub, weather, holidays)
+	mlClient := integrations.NewMLClient("http://127.0.0.1:8000")
 
 	// Seed an initial batch of readings on startup
 	go ingestor.Run()
@@ -47,7 +48,7 @@ func main() {
 	c.Start()
 	defer c.Stop()
 
-	h := handlers.NewHandlers(db)
+	h := handlers.NewHandlers(db, mlClient)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/readings", h.GetReadings)
