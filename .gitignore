@@ -4,6 +4,8 @@
 .DS_Store
 .AppleDouble
 .LSOverride
+Icon?
+._*
 
 # IDEs and Editors
 .vscode/
@@ -29,13 +31,20 @@ server
 *.test
 *.out
 
-# Node.js / React
+# Node.js / React / Vite
 node_modules/
 build/
 dist/
 dist-ssr/
 .eslintcache
 .next/
+.vite/
+
+# Frontend test / e2e artefacts
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
 
 # Logs
 logs/
@@ -68,3 +77,28 @@ tmp/
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Virtualenvs (run.sh creates python_ml/.venv)
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# =========================
+# Docker
+# =========================
+# Local-only compose overrides (e.g. VM-specific port/host tweaks)
+docker-compose.override.yml
+compose.override.yml
+
+# =========================
+# Secrets / credentials
+# =========================
+# Surrey VM access details — contains the SSH password.
+VM Connection Details.md
+CLAUDE.md
