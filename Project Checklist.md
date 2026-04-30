@@ -37,31 +37,38 @@
 - [x] 18. Confirm sub-2-second alert delivery under load — **must pass before Final Audit**
 
 ### Phase 5 — Dockerise
-- [ ] 19. `backend/Dockerfile` — multi-stage Go builder → Alpine runtime
-- [ ] 20. `frontend/Dockerfile` — Vite build served via Nginx
-- [ ] 21. `docker-compose.yml` — backend + frontend wired, SQLite volume mounted
-- [ ] 22. `docker compose up` brings up the full stack with no extra steps
+- [x] 19. `Dockerfile` (root) — multi-stage Go builder → Alpine runtime (Go code lives at root, not in `backend/`)
+- [x] 20. `frontend/Dockerfile` — Vite build served via Nginx (with SPA fallback)
+- [x] 21. `docker-compose.yml` — backend + frontend + ML wired, named SQLite volume `campus-db`
+- [x] 22. `docker compose up` brings up the full stack with no extra steps
 
-### Phase 6 — Railway deploy
-- [ ] 23. Connect backend service to GitHub repo on Railway
-- [ ] 24. Connect frontend service to GitHub repo on Railway
-- [ ] 25. Configure persistent SQLite volume on Railway
-- [ ] 26. Pipeline green end-to-end (note: original Week 7 target has slipped)
-- [ ] 27. Local Docker fallback tested as Final Audit backup
+### Phase 6 — Surrey VM deploy
+> Target: Ubuntu 24.04 VM at `user@10.2.8.118` (SSH from Heron/Otter only).
+> Public URL: `https://com2042-hendrixx.csee.surrey.ac.uk` — Surrey gateway
+> terminates TLS and forwards a single HTTP port (3000) to the VM.
+> Code lives in **Surrey GitLab** (no backups on the VM).
+> See `VM Connection Details.md` for the full brief.
+- [ ] 23. Push repo to Surrey GitLab and configure a Personal Access Token for VM clone access
+- [ ] 24. SSH in (`ssh user@10.2.8.118`) and install Docker Engine + Compose plugin
+- [ ] 25. `git clone` the repo onto the VM and run `docker compose up -d --build`
+- [ ] 26. Confirm `https://com2042-hendrixx.csee.surrey.ac.uk` reaches the dashboard, REST endpoints (`/api/*`) and the WebSocket (`/ws`) end-to-end (only port 3000 is exposed; nginx in the frontend container reverse-proxies to backend + ML)
+- [ ] 27. Verify SQLite persists across `docker compose down && up` (named volume `campus-db`)
+- [ ] 28. Configure VM-side process to bring the stack back up on reboot (the per-service `restart: unless-stopped` covers container crashes; Docker's own systemd unit covers reboots)
+- [ ] 29. Local `docker compose up` fallback tested as Final Audit backup
 
 ### Phase 7 — Repo hygiene
-- [ ] 28. Remove stale `backend/` directory (code lives under root `cmd/` + `internal/`)
-- [ ] 29. Branch protection enabled on `main`
-- [ ] 30. PR-only workflow with at least one peer review required
-- [ ] 31. No committed secrets — confirm all API keys via env vars
-- [ ] 32. All commits reference a task ID from the project schedule
+- [ ] 30. Remove stale `backend/` directory (code lives under root `cmd/` + `internal/`)
+- [ ] 31. Branch protection enabled on `main` (Surrey GitLab)
+- [ ] 32. MR-only workflow with at least one peer review required
+- [ ] 33. No committed secrets — confirm all API keys via env vars
+- [ ] 34. All commits reference a task ID from the project schedule
 
 ### Phase 8 — Final QA sign-off
-- [ ] 33. UX review by QA Lead (Mubeen)
-- [ ] 34. Marking rubric criteria verified end-to-end
-- [ ] 35. Virtual sensor stream validated end-to-end
-- [ ] 36. External API integrations (weather + holidays) verified live
-- [ ] 37. Scope confirmed — no out-of-scope features included
+- [ ] 35. UX review by QA Lead (Mubeen)
+- [ ] 36. Marking rubric criteria verified end-to-end
+- [ ] 37. Virtual sensor stream validated end-to-end
+- [ ] 38. External API integrations (weather + holidays) verified live
+- [ ] 39. Scope confirmed — no out-of-scope features included
 
 ---
 
@@ -205,22 +212,25 @@
 ## DevOps & Deployment
 
 ### Docker
-- [ ] `Dockerfile` for backend — multi-stage build (Go builder → Alpine runtime)
-- [ ] `Dockerfile` for frontend — builds React app, serves via Nginx
-- [ ] `docker-compose.yml` — wires backend + frontend, mounts SQLite volume
-- [ ] `docker compose up` runs the full stack locally without extra steps
+- [x] `Dockerfile` for backend — multi-stage build (Go builder → Alpine runtime)
+- [x] `Dockerfile` for frontend — builds React app, serves via Nginx
+- [x] `Dockerfile` for ML sidecar — FastAPI + CPU-only PyTorch
+- [x] `docker-compose.yml` — wires backend + frontend + ML, mounts SQLite volume
+- [x] `docker compose up` runs the full stack locally without extra steps
 
-### Railway CI/CD
-- [ ] Backend service connected to GitHub repo
-- [ ] Frontend service connected to GitHub repo
-- [ ] SQLite volume configured to persist between deploys
-- [ ] Pipeline configured and green by **Week 7**
-- [ ] Local Docker fallback tested as backup for the Final Audit
+### Surrey VM deploy
+- [ ] Repo pushed to **Surrey GitLab** with a Personal Access Token configured for VM clone access
+- [ ] Docker Engine + Compose plugin installed on the Ubuntu 24.04 VM (`user@10.2.8.118`)
+- [ ] `docker compose up -d --build` running on the VM with `restart: unless-stopped` on every service
+- [ ] Only host port **3000** is published — frontend nginx reverse-proxies `/api/*` and `/ws` to the backend service over the docker network (single port matches the Surrey gateway's forwarding rule)
+- [ ] `https://com2042-hendrixx.csee.surrey.ac.uk` reaches the dashboard from a Heron/Otter machine; REST + WebSocket both work end-to-end
+- [ ] Named volume `campus-db` keeps SQLite data across container restarts
+- [ ] Local `docker compose up` fallback verified as Final Audit backup
 
-### GitHub
+### Surrey GitLab
 - [ ] Remove stale `backend/` directory (duplicate code from old structure)
 - [ ] Branch protection enabled on `main`
-- [ ] All changes go through Pull Requests
+- [ ] All changes go through Merge Requests
 - [ ] At least one peer review required before merge
 - [ ] No secrets committed — API keys via environment variables only
 - [ ] All commits reference a task ID from the project schedule
